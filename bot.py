@@ -8,7 +8,7 @@ from ethiopian_date import EthiopianDateConverter
 from flask import Flask
 from threading import Thread
 
-# ------------------- KEEP ALIVE -------------------
+# ------------------- KEEP ALIVE (Uptime) -------------------
 app = Flask('')
 @app.route('/')
 def home(): return "Bot is running"
@@ -39,35 +39,24 @@ PLANS = {
     "plan12": {"duration": 365, "price": 2000, "label": "💎 1 አመት ➡️ 2000 ብር", "text": "የ1 አመት"}
 }
 
-# ------------------- AUTO-EXPIRY LOGIC (ባለቤት ማስወጫ) -------------------
+# ------------------- EXPIRY CHECKER (ማስወጫ) -------------------
 def check_expiries():
-    """በየ 1 ሰዓቱ ዳታቤዙን እየፈተሸ ጊዜው ያለፈበትን ሰው ያስወጣል"""
     while True:
         try:
             now = datetime.now().timestamp()
-            # ጊዜያቸው ያለፈባቸውና ገና ያልተወገዱ (active: True) የሆኑትን ፈልግ
             expired_users = users_col.find({"expiry": {"$lt": now}, "active": True})
-            
             for user in expired_users:
                 user_id = user["user_id"]
                 for ch in VIP_CHANNELS:
                     try:
                         bot.ban_chat_member(ch["id"], user_id)
-                        bot.unban_chat_member(ch["id"], user_id) # ለወደፊት ተመልሰው መግባት እንዲችሉ
-                    except Exception as e:
-                        print(f"Error kicking {user_id}: {e}")
-                
-                # ሁኔታቸውን ወደ መደበኛ ቀይር
+                        bot.unban_chat_member(ch["id"], user_id)
+                    except: pass
                 users_col.update_one({"user_id": user_id}, {"$set": {"active": False}})
-                try:
-                    bot.send_message(user_id, "⚠️ የቪአይፒ አባልነትዎ ጊዜ ተጠናቅቋል። እባክዎ በድጋሚ በመክፈል አባልነትዎን ያድሱ።")
+                try: bot.send_message(user_id, "⚠️ የቪአይፒ አባልነትዎ ጊዜ አልቋል። እባክዎ በድጋሚ በመክፈል አባልነትዎን ያድሱ።")
                 except: pass
-                print(f"User {user_id} has been removed due to expiry.")
-                
-        except Exception as e:
-            print(f"Expiry Checker Error: {e}")
-        
-        time.sleep(3600) # በየ 1 ሰዓቱ አንዴ ቼክ ያደርጋል
+        except: pass
+        time.sleep(3600)
 
 # ------------------- HELPERS -------------------
 def to_ethiopian(gregorian_ts):
@@ -82,7 +71,7 @@ def get_channel_markup(user_id, expiry_ts):
             invite = bot.create_chat_invite_link(ch["id"], member_limit=1, expire_date=int(expiry_ts))
             markup.add(InlineKeyboardButton(f"🔗 {ch['name']} ተቀላቀል", url=invite.invite_link))
         except:
-            markup.add(InlineKeyboardButton(f"🔗 {ch['name']}", url="https://t.me/example"))
+            markup.add(InlineKeyboardButton(f"🔗 {ch['name']}", url="https://t.me/joinchat/example"))
     return markup
 
 def get_start_markup():
@@ -130,35 +119,32 @@ def router(call):
     elif call.data.startswith("approve_"):
         tid = int(call.data.split("_")[1])
         udata = users_col.find_one({"user_id": tid})
-        if not udata or "plan" not in udata:
-            bot.answer_callback_query(call.id, "❌ ፕላን አልተገኘም!", show_alert=True)
-            return
-        plan = PLANS[udata["plan"]]
-        exp_ts = (datetime.now() + timedelta(days=plan["duration"])).timestamp()
-        users_col.update_one({"user_id": tid}, {"$set": {"expiry": exp_ts, "active": True}})
-        bot.send_message(tid, f"🎉 አባልነትዎ ጸድቋል!\n📅 ማብቂያ፡ {to_ethiopian(exp_ts)}", reply_markup=get_channel_markup(tid, exp_ts))
-        bot.edit_message_text(f"✅ ተጠቃሚ {tid} ጸድቋል!", ADMIN_ID, mid)
+        if udata and "plan" in udata:
+            plan = PLANS[udata["plan"]]
+            exp_ts = (datetime.now() + timedelta(days=plan["duration"])).timestamp()
+            users_col.update_one({"user_id": tid}, {"$set": {"expiry": exp_ts, "active": True}})
+            bot.send_message(tid, f"🎉 አባልነትዎ ጸድቋል!\n📅 ማብቂያ፡ {to_ethiopian(exp_ts)}", reply_markup=get_channel_markup(tid, exp_ts))
+            bot.edit_message_text(f"✅ ተጠቃሚ {tid} ጸድቋል!", ADMIN_ID, mid)
 
     elif call.data.startswith("reject_"):
         tid = call.data.split("_")[1]
         markup = InlineKeyboardMarkup()
         markup.add(InlineKeyboardButton("🚫 የተሳሳተ ደረሰኝ", callback_data=f"rj_wrong_{tid}"))
         markup.add(InlineKeyboardButton("📉 የብር መጠን ያንሳል", callback_data=f"rj_less_{tid}"))
-        bot.edit_message_text("❌ ውድቅ የሚደረግበት ምክንያት ይምረጡ፡", ADMIN_ID, mid, reply_markup=markup)
+        bot.edit_message_text("❌ ውድቅ የሚደረገበት ምክንያት ይምረጡ፡", ADMIN_ID, mid, reply_markup=markup)
 
     elif call.data.startswith("rj_"):
-        _, reason, tid = call.data.split("_")
-        msg = "❌ ይቅርታ፣ ደረሰኝዎ ተቀባይነት አላገኘም።\n\nምክንያት፡ "
-        msg += "ደረሰኙ ትክክል አይደለም።" if reason == "wrong" else "የከፈሉት መጠን አያንስም።"
+        _, r, tid = call.data.split("_")
+        reason = "ደረሰኙ ስህተት ነው።" if r == "wrong" else "የከፈሉት መጠን ያንሳል።"
         try:
-            bot.send_message(int(tid), msg)
+            bot.send_message(int(tid), f"❌ ይቅርታ ክፍያዎ ውድቅ ተደርጓል።\nምክንያት፡ {reason}")
             bot.edit_message_text(f"🔴 ተጠቃሚ {tid} ውድቅ ተደርጓል", ADMIN_ID, mid)
         except: pass
 
     elif call.data == "admin_list":
         users = list(users_col.find().sort("expiry", 1))
-        report = "👥 ተጠቃሚዎች:\n\n" + "\n".join([f"@{u.get('username','N/A')} | {to_ethiopian(u.get('expiry', 0)) if u.get('expiry') else 'Pending'}" for u in users])
-        bot.send_message(ADMIN_ID, report if users else "ምንም ተጠቃሚ የለም")
+        report = "👥 ተጠቃሚዎች:\n\n" + "\n".join([f"@{u.get('username','N/A')} | {to_ethiopian(u['expiry']) if u.get('expiry') else 'Pending'}" for u in users])
+        bot.send_message(ADMIN_ID, report if users else "ባዶ ነው")
 
     elif call.data == "admin_bc":
         msg = bot.send_message(ADMIN_ID, "📝 መልዕክት ይጻፉ (ለማቋረጥ /cancel)፡")
@@ -166,24 +152,21 @@ def router(call):
 
 # ------------------- LOGIC -------------------
 def get_screenshot(message):
-    if message.text == "/start":
-        start(message)
-        return
+    if message.text == "/start": return start(message)
     if not message.photo:
-        bot.reply_to(message, "📸 እባክዎ ደረሰኝ (Screenshot) ይላኩ።")
+        bot.reply_to(message, "📸 እባክዎ Screenshot ይላኩ።")
         bot.register_next_step_handler(message, get_screenshot)
         return
-
     markup = InlineKeyboardMarkup()
     markup.add(InlineKeyboardButton("✅ Approve", callback_data=f"approve_{message.from_user.id}"),
                InlineKeyboardButton("❌ Reject", callback_data=f"reject_{message.from_user.id}"))
-    bot.send_message(ADMIN_ID, f"💰 **ክፍያ ከ @{message.from_user.username}**", reply_markup=markup)
+    bot.send_message(ADMIN_ID, f"💰 ክፍያ ከ @{message.from_user.username}", reply_markup=markup)
     bot.forward_message(ADMIN_ID, message.chat.id, message.message_id)
-    bot.send_message(message.chat.id, "✅ ተልኳል! ከ1 ሰዓት ባልበለጠ ጊዜ ውስጥ ይረጋገጣል።")
+    bot.send_message(message.chat.id, "✅ ተልኳል! አድሚኑ መረጃውን አረጋግጦ ከ1 ሰዓት ባልበለጠ ጊዜ ውስጥ VIP ያነቃቃል።")
 
 def run_broadcast(message):
     if message.text and (message.text.lower() == 'cancel' or message.text == '/cancel'):
-        bot.send_message(ADMIN_ID, "❌ ስርጭቱ ተቋርጧል")
+        bot.send_message(ADMIN_ID, "❌ ተሰርዟል።")
         return
     all_users = users_col.find()
     s = 0
@@ -192,17 +175,9 @@ def run_broadcast(message):
             bot.copy_message(u['user_id'], ADMIN_ID, message.message_id)
             s += 1
         except: pass
-    bot.send_message(ADMIN_ID, f"📢 ለ {s} ሰዎች ተልኳል")
+    bot.send_message(ADMIN_ID, f"📢 ለ {s} ተልኳል")
 
 if __name__ == "__main__":
     keep_alive()
-    # ራስ-ሰር ማስወጫውንThread አስነሳ
     Thread(target=check_expiries, daemon=True).start()
-    bot.infinity_polling()            bot.copy_message(u['user_id'], ADMIN_ID, message.message_id)
-            s += 1
-        except: f += 1
-    bot.send_message(ADMIN_ID, f"📢 ስርጭት ተጠናቋል!\n✅ የደረሳቸው: {s}\n❌ የከሸፈባቸው: {f}")
-
-if __name__ == "__main__":
-    keep_alive()
     bot.infinity_polling()
