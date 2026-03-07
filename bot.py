@@ -61,10 +61,15 @@ def get_channel_markup(user_id):
     markup.add(InlineKeyboardButton("🔄 ሁኔታውን አድስ (Refresh Status)", callback_data="refresh_links"))
     return markup
 
+# ቀን መቀየሪያው ላይ የነበረው ስህተት እዚህ ጋር ተስተካክሏል
 def to_ethiopian(ts):
-    dt = datetime.fromtimestamp(ts)
-    conv = EthiopianDateConverter.to_ethiopian(dt.year, dt.month, dt.day)
-    return f"{conv[2]}/{conv[1]}/{conv[0]}"
+    try:
+        dt = datetime.fromtimestamp(ts)
+        conv = EthiopianDateConverter.to_ethiopian(dt.year, dt.month, dt.day)
+        # የስህተቱ ምንጭ የነበረው conv[2] የሚለው ወደ conv.day ተቀይሯል
+        return f"{conv.day}/{conv.month}/{conv.year}"
+    except:
+        return "ያልታወቀ ቀን"
 
 # ------------------- COMMANDS -------------------
 @bot.message_handler(commands=["start"])
@@ -96,7 +101,6 @@ def router(call):
     uid = call.from_user.id
     mid = call.message.message_id
 
-    # ጥቅል ምርጫ
     if call.data in PLANS:
         users_col.update_one({"user_id": uid}, {"$set":{"pending_plan": call.data, "username": call.from_user.username}}, upsert=True)
         markup = InlineKeyboardMarkup()
@@ -109,7 +113,6 @@ def router(call):
     elif call.data == "back_to_plans":
         send_plans(uid, mid)
 
-    # የባንክ መረጃ
     elif call.data.startswith("p_"):
         method = call.data.split("_")[1].upper()
         u_data = users_col.find_one({"user_id": uid})
@@ -121,7 +124,6 @@ def router(call):
         bot.edit_message_text(f"💎 ጥቅል: {plan_name}\n\n{bank_info}\n\n📸 የከፈሉበትን Screenshot (የደረሰኙን ፎቶ) እዚህ ይላኩ", uid, mid, parse_mode="Markdown")
         bot.register_next_step_handler(call.message, get_screenshot)
 
-    # አጸድቅ (Approve) - FIXED
     elif call.data.startswith("approve_"):
         try:
             parts = call.data.split("_")
@@ -138,7 +140,6 @@ def router(call):
         except Exception as e:
             bot.answer_callback_query(call.id, f"Error: {e}", show_alert=True)
 
-    # ውድቅ አድርግ (Reject)
     elif call.data.startswith("reject_"):
         target_id = call.data.split("_")[1]
         markup = InlineKeyboardMarkup()
@@ -171,7 +172,6 @@ def get_screenshot(message):
     pk = u_data["pending_plan"] if (u_data and "pending_plan" in u_data) else "plan1"
     
     markup = InlineKeyboardMarkup()
-    # Approve በተኑ ላይ መረጃውን አብሮ እንዲይዝ ተደርጓል (Direct Fix)
     markup.add(InlineKeyboardButton("✅ Approve", callback_data=f"approve_{uid}_{pk}"),
                InlineKeyboardButton("❌ Reject", callback_data=f"reject_{uid}"))
     
@@ -190,4 +190,6 @@ def run_broadcast(message):
 
 if __name__ == "__main__":
     keep_alive()
+    bot.remove_webhook()
+    time.sleep(1)
     bot.infinity_polling(timeout=10, long_polling_timeout=5)
