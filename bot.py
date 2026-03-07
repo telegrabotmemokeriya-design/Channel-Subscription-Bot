@@ -26,9 +26,9 @@ db = client["vipbot"]
 users_col = db["users"]
 
 VIP_CHANNELS = [
-    {"id": -1003128362218, "name": "VIP Channel 1"},
-    {"id": -1002978674693, "name": "VIP Channel 2"},
-    {"id": -1003009075671, "name": "VIP Channel 3"}
+    {"id": -1003128362218, "name": "Gett Vip Channel 1"},
+    {"id": -1002978674693, "name": "Gett Vip Channel 2"},
+    {"id": -1003009075671, "name": "Gett Vip Channel 3"}
 ]
 
 PLANS = {
@@ -52,22 +52,22 @@ def check_join_status(user_id, channel_id):
 def get_channel_markup(user_id):
     markup = InlineKeyboardMarkup()
     for ch in VIP_CHANNELS:
-        emoji = check_join_status(user_id, ch["id"])
+        # እዚህ ጋር ምልክቱ እና የቻናሉ ስም እንዲታይ ተደርጓል
+        status = check_join_status(user_id, ch["id"])
         try:
             invite = bot.create_chat_invite_link(ch["id"], member_limit=1).invite_link
-            markup.add(InlineKeyboardButton(f"{emoji} {ch['name']}", url=invite))
+            markup.add(InlineKeyboardButton(f"{status} {ch['name']}", url=invite))
         except:
-            markup.add(InlineKeyboardButton(f"{emoji} {ch['name']}", url="https://t.me/example"))
+            markup.add(InlineKeyboardButton(f"{status} {ch['name']}", url="https://t.me/example"))
     markup.add(InlineKeyboardButton("🔄 ሁኔታውን አድስ (Refresh Status)", callback_data="refresh_links"))
     return markup
 
-# ቀን መቀየሪያው ላይ የነበረው ስህተት እዚህ ጋር ተስተካክሏል
-def to_ethiopian(ts):
+def to_ethiopian_format(ts):
     try:
         dt = datetime.fromtimestamp(ts)
         conv = EthiopianDateConverter.to_ethiopian(dt.year, dt.month, dt.day)
-        # የስህተቱ ምንጭ የነበረው conv[2] የሚለው ወደ conv.day ተቀይሯል
-        return f"{conv.day}/{conv.month}/{conv.year}"
+        months = ["", "መስከረም", "ጥቅምት", "ህዳር", "ታህሳስ", "ጥር", "የካቲት", "መጋቢት", "ሚያዝያ", "ግንቦት", "ሰኔ", "ሐምሌ", "ነሐሴ", "ጳጉሜ"]
+        return f"{months[conv.month]} / {conv.day} / {conv.year}"
     except:
         return "ያልታወቀ ቀን"
 
@@ -134,8 +134,20 @@ def router(call):
             exp_ts = (datetime.now() + timedelta(days=plan["duration"])).timestamp()
             users_col.update_one({"user_id": target_id}, {"$set": {"expiry": exp_ts, "active": True, "plan": plan_key}})
             
-            bot.send_message(target_id, f"🎉 ክፍያዎ ተረጋግጦ አባልነትዎ ጸድቋል!\n📅 ማብቂያ፡ {to_ethiopian(exp_ts)}\n\nቻናሎቹን ለመቀላቀል ከታች ያሉትን በተኖች ይጠቀሙ፡", reply_markup=get_channel_markup(target_id))
-            bot.edit_message_text(f"✅ ተጠቃሚ {target_id} በ {plan['name']} ጸድቋል!", ADMIN_ID, mid)
+            # አዲስ የማረጋገጫ መልዕክት አጻጻፍ
+            username = call.from_user.username if call.from_user.username else str(target_id)
+            approve_text = (
+                f"ወድ : @{username}\n"
+                f"🧧{plan['name']} ✔️ ከፍለዋል ።\n"
+                f"🎉 ክፍያዎ ተረጋግጦ የ Gett Vip ⚜️ አባል ሆነዋል! \n"
+                f"🗓️ አገልግሎቱ የሚያበቃው - {to_ethiopian_format(exp_ts)}\n\n"
+                f"አገልግሎታችንን ስለተጠቀሙ እናመሰግናለን። ⭐\n\n"
+                f"ቻናሎቹን ለመቀላቀል ከታች ያሉትን በተኖች ይጠቀሙ፡\n"
+                f"ሁሉንም ቻናል መቀላቀሎን እንዳይረሱ ✅"
+            )
+            
+            bot.send_message(target_id, approve_text, reply_markup=get_channel_markup(target_id))
+            bot.edit_message_text(f"✅ ተጠቃሚ {target_id} ጸድቋል!", ADMIN_ID, mid)
             bot.answer_callback_query(call.id, "ተጠቃሚው ጸድቋል!")
         except Exception as e:
             bot.answer_callback_query(call.id, f"Error: {e}", show_alert=True)
@@ -154,7 +166,9 @@ def router(call):
         bot.edit_message_text(f"🔴 ተጠቃሚ {target_id} ውድቅ ተደርጓል", ADMIN_ID, mid)
 
     elif call.data == "refresh_links":
-        bot.edit_message_reply_markup(uid, mid, reply_markup=get_channel_markup(uid))
+        # አድስ ሲጫን ምልክቶቹን እንደገና ቼክ ያደርጋል
+        bot.edit_message_reply_markup(chat_id=uid, message_id=mid, reply_markup=get_channel_markup(uid))
+        bot.answer_callback_query(call.id, "ሁኔታው ታድሷል! ✅")
 
     elif call.data == "admin_bc":
         msg = bot.send_message(ADMIN_ID, "📝 መልዕክት ይጻፉ (ለመሰረዝ /cancel):")
