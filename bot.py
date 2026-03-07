@@ -114,7 +114,7 @@ def router(call):
     elif call.data.startswith("p_"):
         method = call.data.split("_")[1].upper()
         u_data = users_col.find_one({"user_id": uid})
-        plan_name = PLANS[u_data['pending_plan']]['name'] if u_data else ""
+        plan_name = PLANS[u_data['pending_plan']]['name'] if (u_data and 'pending_plan' in u_data) else ""
 
         if method == "CBE":
             bank_info = "🏦 CBE ኢትዮጵያ ንግድ ባንክ\n👤 ስም: Getamesay Fikru\n🔢 Acc: `1000355140206`"
@@ -126,28 +126,35 @@ def router(call):
         bot.edit_message_text(f"💎 ጥቅል: {plan_name}\n\n{bank_info}\n\n📸 የከፈሉበትን Screenshot (የደረሰኙን ፎቶ) እዚህ ይላኩ", uid, mid, parse_mode="Markdown")
         bot.register_next_step_handler(call.message, get_screenshot)
 
-    elif call.data.startswith("approve_"):
-        tid = int(call.data.split("_")[1])
-        u_data = users_col.find_one({"user_id": tid})
-        if u_data:
-            plan = PLANS[u_data["pending_plan"]]
-            exp_ts = (datetime.now() + timedelta(days=plan["duration"])).timestamp()
-            users_col.update_one({"user_id": tid}, {"$set": {"expiry": exp_ts, "active": True}})
-            bot.send_message(tid, f"🎉 ክፍያዎ ተረጋግጦ አባልነትዎ ጸድቋል!\n📅 ማብቂያ፡ {to_ethiopian(exp_ts)}\n\nቻናሎቹን ለመቀላቀል ከታች ያሉትን በተኖች ይጠቀሙ፡", reply_markup=get_channel_markup(tid))
-            bot.edit_message_text(f"✅ ተጠቃሚ {tid} ጸድቋል!", ADMIN_ID, mid)
-
-    elif call.data.startswith("reject_"):
-        tid = call.data.split("_")[1]
-        markup = InlineKeyboardMarkup()
-        markup.add(InlineKeyboardButton("🚫 የተሳሳተ ደረሰኝ", callback_data=f"rj_wrong_{tid}"),
-                   InlineKeyboardButton("📉 መጠኑ ያንሳል", callback_data=f"rj_less_{tid}"))
-        bot.edit_message_text("❌ ውድቅ የተደረገበት ምክንያት ይምረጡ፡", ADMIN_ID, mid, reply_markup=markup)
+    elif call.data.startswith("ap_"):
+        # አዲስ Approval ሲስተም - ዳታው በቀጥታ ከበተኑ ይነበባል
+        parts = call.data.split("_")
+        tid = int(parts[1])
+        pk = parts[2]
+        p_info = PLANS[pk]
+        
+        exp_ts = (datetime.now() + timedelta(days=p_info["duration"])).timestamp()
+        users_col.update_one({"user_id": tid}, {"$set": {"expiry": exp_ts, "active": True, "plan": pk}})
+        
+        bot.send_message(tid, f"🎉 ክፍያዎ ተረጋግጦ አባልነትዎ ጸድቋል!\n📅 ማብቂያ፡ {to_ethiopian(exp_ts)}\n\nቻናሎቹን ለመቀላቀል ከታች ያሉትን በተኖች ይጠቀሙ፡", reply_markup=get_channel_markup(tid))
+        bot.edit_message_text(f"✅ ተጠቃሚ {tid} በ {p_info['name']} ጸድቋል!", ADMIN_ID, mid)
+        bot.answer_callback_query(call.id, "ጸድቋል!")
 
     elif call.data.startswith("rj_"):
-        _, r, tid = call.data.split("_")
-        reason = "ደረሰኙ ስህተት ነው።" if r == "wrong" else "የከፈሉት መጠን ያንሳል።"
-        bot.send_message(int(tid), f"❌ ይቅርታ፣ ክፍያዎ ውድቅ ሆኗል!\nምክንያት፡ {reason}")
-        bot.edit_message_text(f"🔴 ተጠቃሚ {tid} ውድቅ ተደርጓል", ADMIN_ID, mid)
+        # Reject logic
+        parts = call.data.split("_")
+        if len(parts) == 2: # First click
+            tid = parts[1]
+            markup = InlineKeyboardMarkup()
+            markup.add(InlineKeyboardButton("🚫 የተሳሳተ ደረሰኝ", callback_data=f"rj_wrong_{tid}"),
+                       InlineKeyboardButton("📉 መጠኑ ያንሳል", callback_data=f"rj_less_{tid}"))
+            bot.edit_message_text("❌ ውድቅ የተደረገበት ምክንያት ይምረጡ፡", ADMIN_ID, mid, reply_markup=markup)
+        else: # Reason selected
+            reason_type = parts[1]
+            tid = int(parts[2])
+            reason_msg = "ደረሰኙ ስህተት ነው።" if reason_type == "wrong" else "የከፈሉት መጠን ያንሳል።"
+            bot.send_message(tid, f"❌ ይቅርታ፣ ክፍያዎ ውድቅ ሆኗል!\nምክንያት፡ {reason_msg}")
+            bot.edit_message_text(f"🔴 ተጠቃሚ {tid} ውድቅ ተደርጓል", ADMIN_ID, mid)
 
     elif call.data == "refresh_links":
         bot.edit_message_reply_markup(uid, mid, reply_markup=get_channel_markup(uid))
@@ -164,11 +171,17 @@ def get_screenshot(message):
         bot.register_next_step_handler(message, get_screenshot)
         return
     
-    markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("✅ Approve", callback_data=f"approve_{message.from_user.id}"),
-               InlineKeyboardButton("❌ Reject", callback_data=f"reject_{message.from_user.id}"))
+    uid = message.from_user.id
+    u_data = users_col.find_one({"user_id": uid})
+    # ተጠቃሚው የመረጠው ፕላን ካልተገኘ በዲፎልት plan1 ይደረጋል
+    pk = u_data["pending_plan"] if (u_data and "pending_plan" in u_data) else "plan1"
     
-    bot.send_message(ADMIN_ID, f"💰 ክፍያ ከ @{message.from_user.username} (ID: `{message.from_user.id}`)")
+    markup = InlineKeyboardMarkup()
+    # "ap_" በሚል አሳጥሬዋለሁ (callback limit እንዳያልፍ)
+    markup.add(InlineKeyboardButton("✅ Approve", callback_data=f"ap_{uid}_{pk}"),
+               InlineKeyboardButton("❌ Reject", callback_data=f"rj_{uid}"))
+    
+    bot.send_message(ADMIN_ID, f"💰 ክፍያ ከ @{message.from_user.username} (ID: `{uid}`)\n💎 ጥቅል: {PLANS[pk]['name']}")
     bot.forward_message(ADMIN_ID, message.chat.id, message.message_id)
     bot.send_message(ADMIN_ID, "ያረጋግጡ፡", reply_markup=markup)
     bot.send_message(message.chat.id, "✅ ተልኳል! አድሚኑ እስኪያረጋግጥ ድረስ በትዕግስት ይጠብቁ።")
@@ -186,22 +199,6 @@ def run_broadcast(message):
         except: pass
     bot.send_message(ADMIN_ID, f"📢 ለ {count} ተጠቃሚዎች ተልኳል።")
 
-def check_expiries():
-    while True:
-        try:
-            now = datetime.now().timestamp()
-            expired = users_col.find({"expiry": {"$lt": now}, "active": True})
-            for u in expired:
-                uid = u["user_id"]
-                for ch in VIP_CHANNELS:
-                    try: bot.ban_chat_member(ch["id"], uid); bot.unban_chat_member(ch["id"], uid)
-                    except: pass
-                users_col.update_one({"user_id": uid}, {"$set": {"active": False}})
-                bot.send_message(uid, "⚠️ የቪአይፒ ጊዜዎ ስላለቀ ከቻናል ተወግደዋል።")
-        except: pass
-        time.sleep(3600)
-
 if __name__ == "__main__":
     keep_alive()
-    Thread(target=check_expiries, daemon=True).start()
     bot.infinity_polling()
