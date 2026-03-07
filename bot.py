@@ -123,7 +123,6 @@ def router(call):
         else:
             bank_info = "📱 Telebirr (ቴሌብር)\n👤 ስም: Getamesay Fikru\n🔢 ስልክ: `0965979124`"
         
-        # የተጠቃሚውን ጥያቄ መሰረት ያደረገ ማስተካከያ
         bot.edit_message_text(f"💎 ጥቅል: {plan_name}\n\n{bank_info}\n\n📸 የከፈሉበትን Screenshot (የደረሰኙን ፎቶ) እዚህ ይላኩ", uid, mid, parse_mode="Markdown")
         bot.register_next_step_handler(call.message, get_screenshot)
 
@@ -205,67 +204,4 @@ def check_expiries():
 if __name__ == "__main__":
     keep_alive()
     Thread(target=check_expiries, daemon=True).start()
-    bot.infinity_polling()    user = users_col.find_one({"user_id": user_id})
-    plan_key = user["plan"]
-    plan = PLANS[plan_key]
-    expiry = datetime.now() + timedelta(days=plan["duration"])
-    expiry_ts = int(expiry.timestamp())
-    markup = InlineKeyboardMarkup()
-    for ch in VIP_CHANNELS:
-        try:
-            invite_link = bot.create_chat_invite_link(ch["id"], member_limit=1, expire_date=expiry_ts).invite_link
-            markup.add(InlineKeyboardButton(f"☑️ {ch['name']}", url=invite_link))
-        except: pass
-    bot.send_message(user_id,"🎉 ክፍያዎ ተረጋግጧል! ቻናሎቻችን ከታች ያገኙ:", reply_markup=markup)
-    users_col.update_one({"user_id": user_id},{"$set":{"expiry":expiry.timestamp()}})
-
-# ------------------- AUTO REMOVE EXPIRED -------------------
-def kick_expired():
-    now = datetime.now().timestamp()
-    expired = users_col.find({"expiry":{"$lte": now}})
-    for user in expired:
-        for ch in VIP_CHANNELS:
-            try:
-                bot.ban_chat_member(ch["id"], user["user_id"])
-                bot.unban_chat_member(ch["id"], user["user_id"])
-            except: pass
-        try:
-            bot.send_message(user["user_id"], "⚠️ የVIP ጊዜዎ አብቅቷል። 🔄 እንደገና ይምረጡ.")
-        except: pass
-        users_col.delete_one({"_id": user["_id"]})
-
-# ------------------- ADMIN VIP LIST -------------------
-@bot.message_handler(commands=['listvip'], func=lambda m: m.from_user.id==ADMIN_ID)
-def list_vip(message):
-    users = list(users_col.find())
-    if not users: bot.send_message(ADMIN_ID,"❌ ምንም VIP ተጠቃሚ አልተመዘገበም"); return
-    text = "📋 VIP Users List:\n\n"
-    for u in users:
-        text += f"👤 UserID: {u['user_id']} | Plan: {u.get('plan','N/A')} | Expiry: {datetime.fromtimestamp(u.get('expiry',0)).strftime('%Y-%m-%d %H:%M')}\n"
-        markup = InlineKeyboardMarkup()
-        markup.add(InlineKeyboardButton("☑️ Resend VIP Link", callback_data=f"resend_{u['user_id']}"))
-        bot.send_message(ADMIN_ID,text, reply_markup=markup)
-        text = ""
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith("resend_"))
-def resend_vip_link(call):
-    uid = int(call.data.split("_")[1])
-    user = users_col.find_one({"user_id": uid})
-    if not user: bot.send_message(ADMIN_ID, "❌ User not found"); return
-    expiry_ts = int(user.get("expiry", datetime.now().timestamp()))
-    markup = InlineKeyboardMarkup()
-    for ch in VIP_CHANNELS:
-        try:
-            invite_link = bot.create_chat_invite_link(ch["id"], member_limit=1, expire_date=expiry_ts).invite_link
-            markup.add(InlineKeyboardButton(f"☑️ {ch['name']}", url=invite_link))
-        except: pass
-    bot.send_message(uid, "🔗 እድሳት ቻናሎች እነሆ:", reply_markup=markup)
-    bot.answer_callback_query(call.id, "✅ VIP link resent to user")
-
-# ------------------- RUN -------------------
-if __name__=="__main__":
-    keep_alive()
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(kick_expired, 'interval', minutes=10)
-    scheduler.start()
     bot.infinity_polling()
