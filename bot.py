@@ -90,7 +90,6 @@ def admin_panel_buttons(call):
     # ------------------- Add New Channel -------------------
     elif call.data == "add_new":
         bot.send_message(ADMIN_ID, "➕ Send the new channel info (ID and Name). You can implement input flow here.")
-        return
 
     text = "👋 እንኳን ወደ VIP ቻናሎቻችን በደህና መጡ!\n\n✅ ከታች ከተዘረዘሩት ጥቅሎች የሚፈልጉትን ይምረጡ:"
     markup = InlineKeyboardMarkup()
