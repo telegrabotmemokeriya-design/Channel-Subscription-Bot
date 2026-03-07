@@ -20,11 +20,11 @@ def keep_alive():
     Thread(target=run_web).start()
 
 # --- CONFIGURATION (Environment Variables) ---
-BOT_TOKEN = os.getenv('BOT_TOKEN')
-MONGO_URI = os.getenv('MONGO_URI')
-ADMIN_ID = int(os.getenv('ADMIN_ID'))
+BOT_TOKEN = os.getenv('8761334829:AAFQ199xltsdGmDPufBQF0hUdyyeKXOC7AM')
+MONGO_URI = os.getenv('mongodb+srv://telegrabotmemokeriya:Getamesay@cluster0.4zflunb.mongodb.net/?appName=Cluster0')
+ADMIN_ID = int(os.getenv('5698805670'))
 UPI_ID = os.getenv('UPI_ID')
-CONTACT_USERNAME = os.getenv('CONTACT_USERNAME')
+CONTACT_USERNAME = os.getenv('@Gygett')
 
 bot = telebot.TeleBot(BOT_TOKEN)
 client = MongoClient(MONGO_URI)
