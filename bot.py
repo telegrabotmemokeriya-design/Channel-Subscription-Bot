@@ -51,12 +51,11 @@ PLANS = {
 def check_join_status(user_id, channel_id):
     try:
         member = bot.get_chat_member(channel_id, user_id)
-        if member.status in ['member','administrator','creator']:
+        if member.status in ['member', 'administrator', 'creator']:
             return "✅"
         return "☑️"
     except:
         return "☑️"
-
 
 def get_channel_markup(user_id):
 
@@ -131,7 +130,7 @@ def start(message):
 
     bot.send_message(
         uid,
-        "👋 እንኳን ደህና መጡ!\n\nVIP ለመግባት ጥቅል ይምረጡ:",
+        "👋 እንኳን ደህና መጡ!\nVIP ለመግባት ጥቅል ይምረጡ:",
         reply_markup=markup
     )
 
@@ -174,34 +173,14 @@ def router(call):
         method = call.data.split("_")[1]
 
         if method == "cbe":
-
-            bank = """
-🏦 CBE
-
-👤 Getamesay Fikru
-🔢 1000355140206
-"""
-
+            bank = "🏦 CBE\n👤 Getamesay Fikru\n🔢 1000355140206"
         elif method == "aby":
-
-            bank = """
-🏦 Abyssinia
-
-👤 Getamesay Fikru
-🔢 167829104
-"""
-
+            bank = "🏦 Abyssinia\n👤 Getamesay Fikru\n🔢 167829104"
         else:
-
-            bank = """
-📱 Telebirr
-
-👤 Getamesay Fikru
-📞 0965979124
-"""
+            bank = "📱 Telebirr\n👤 Getamesay Fikru\n📞 0965979124"
 
         bot.edit_message_text(
-            f"{bank}\n📸 Screenshot ይላኩ",
+            f"{bank}\n\n📸 Screenshot ይላኩ",
             uid,
             mid
         )
@@ -217,80 +196,36 @@ def router(call):
 
         udata = users_col.find_one({"user_id":tid})
 
-        if not udata or "plan" not in udata:
-            bot.answer_callback_query(call.id,"plan not found")
-            return
+        if udata and "plan" in udata:
 
-        plan = PLANS[udata["plan"]]
+            plan = PLANS[udata["plan"]]
 
-        exp_ts = (
-            datetime.now()
-            +
-            timedelta(days=plan["duration"])
-        ).timestamp()
+            exp_ts = (
+                datetime.now()
+                +
+                timedelta(days=plan["duration"])
+            ).timestamp()
 
-        users_col.update_one(
-            {"user_id":tid},
-            {"$set":{
-                "expiry":exp_ts,
-                "active":True
-            }}
-        )
-
-        bot.send_message(
-            tid,
-            f"""🎉 ክፍያዎ ጸድቋል!
-
-📅 ማብቂያ
-{to_ethiopian(exp_ts)}
-
-👇 ቻናሎች""",
-            reply_markup=get_channel_markup(tid)
-        )
-
-        bot.edit_message_text(
-            f"✅ user `{tid}` approved",
-            ADMIN_ID,
-            mid,
-            parse_mode="Markdown"
-        )
-
-    elif call.data.startswith("reject_"):
-
-        tid = int(call.data.split("_")[1])
-
-        markup = InlineKeyboardMarkup()
-
-        markup.add(
-            InlineKeyboardButton(
-                "🚫 wrong receipt",
-                callback_data=f"rj_wrong_{tid}"
-            ),
-            InlineKeyboardButton(
-                "📉 less payment",
-                callback_data=f"rj_less_{tid}"
+            users_col.update_one(
+                {"user_id":tid},
+                {"$set":{
+                    "expiry":exp_ts,
+                    "active":True
+                }}
             )
-        )
 
-        bot.edit_message_text(
-            "❌ ምክንያት ይምረጡ",
-            ADMIN_ID,
-            mid,
-            reply_markup=markup
-        )
+            bot.send_message(
+                tid,
+                f"🎉 ክፍያዎ ጸድቋል!\n📅 ማብቂያ: {to_ethiopian(exp_ts)}",
+                reply_markup=get_channel_markup(tid)
+            )
 
-    elif call.data == "refresh_links":
+            bot.answer_callback_query(call.id,"Approved")
 
-        bot.edit_message_reply_markup(
-            uid,
-            mid,
-            reply_markup=get_channel_markup(uid)
-        )
-
-        bot.answer_callback_query(
-            call.id,
-            "updated"
-        )
+            bot.send_message(
+                ADMIN_ID,
+                f"✅ ተጠቃሚ {tid} ጸድቋል!"
+            )
 
 # ------------------- SCREENSHOT -------------------
 
