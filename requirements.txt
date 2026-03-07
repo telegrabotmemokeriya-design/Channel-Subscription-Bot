@@ -1,5 +1,5 @@
 pyTelegramBotAPI
-pymongo[srv]
-apscheduler
-flask
+pymongo
+dnspython
 ethiopian-date
+flask
