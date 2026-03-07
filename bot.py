@@ -45,21 +45,20 @@ def check_join_status(user_id, channel_id):
         member = bot.get_chat_member(channel_id, user_id)
         if member.status in ['member', 'administrator', 'creator']:
             return "✅"
-        else:
-            return "☑️"
+        return "☑️"
     except:
         return "☑️"
 
 def get_channel_markup(user_id):
     markup = InlineKeyboardMarkup()
     for ch in VIP_CHANNELS:
-        status_emoji = check_join_status(user_id, ch["id"])
-        # ጊዜያዊ ሊንክ መፍጠር
-        invite = bot.create_chat_invite_link(ch["id"], member_limit=1).invite_link
-        markup.add(InlineKeyboardButton(f"{status_emoji} {ch['name']}", url=invite))
-    
-    # ተጠቃሚው ቼክ እንዲያደርግ "Refresh" በተን
-    markup.add(InlineKeyboardButton("🔄 ሁኔታውን አድስ (Refresh Status)", callback_data="refresh_links"))
+        emoji = check_join_status(user_id, ch["id"])
+        try:
+            invite = bot.create_chat_invite_link(ch["id"], member_limit=1).invite_link
+            markup.add(InlineKeyboardButton(f"{emoji} {ch['name']}", url=invite))
+        except:
+            markup.add(InlineKeyboardButton(f"{emoji} {ch['name']}", url="https://t.me/example"))
+    markup.add(InlineKeyboardButton("🔄 ሁኔታውን አድስ (Refresh)", callback_data="refresh_links"))
     return markup
 
 def to_ethiopian(gregorian_ts):
@@ -74,8 +73,7 @@ def start(message):
     if user_id == ADMIN_ID:
         markup = InlineKeyboardMarkup()
         markup.add(InlineKeyboardButton("📋 የደንበኞች ዝርዝር", callback_data="admin_list"))
-        markup.add(InlineKeyboardButton("📢 መልዕክት ላክ", callback_data="admin_bc"))
-        bot.send_message(ADMIN_ID, "🛠 **የአድሚን ፓነል**", reply_markup=markup)
+        bot.send_message(ADMIN_ID, "🛠 የአድሚን ፓነል", reply_markup=markup)
         return
     
     markup = InlineKeyboardMarkup()
@@ -90,22 +88,23 @@ def router(call):
     mid = call.message.message_id
 
     if call.data in PLANS:
-        users_col.update_one({"user_id": user_id}, {"$set":{"plan": call.data, "username": call.from_user.username}}, upsert=True)
+        users_col.update_one({"user_id": user_id}, {"$set":{"plan": call.data}}, upsert=True)
         markup = InlineKeyboardMarkup()
-        markup.add(InlineKeyboardButton("🏦 CBE", callback_data="p_cbe"), InlineKeyboardButton("🏦 Abyssinia", callback_data="p_aby"))
-        markup.add(InlineKeyboardButton("📱 Telebirr", callback_data="p_tele"))
+        markup.add(InlineKeyboardButton("🏦 CBE", callback_data="p_cbe"), 
+                   InlineKeyboardButton("🏦 Abyssinia", callback_data="p_aby"),
+                   InlineKeyboardButton("📱 Telebirr", callback_data="p_tele"))
         bot.edit_message_text("💳 የክፍያ አማራጭ ይምረጡ:", user_id, mid, reply_markup=markup)
 
     elif call.data.startswith("p_"):
         method = call.data.split("_")[1].upper()
         if method == "CBE":
-            bank_info = "🏦 CBE ኢትዮጵያ ንግድ ባንክ\n\n👤 ስም: Getamesay Fikru\n🔢 Acc: `1000355140206` (CBE)"
+            bank_info = "🏦 CBE ኢትዮጵያ ንግድ ባንክ\n👤 Getamesay Fikru\n🔢 `1000355140206`"
         elif method == "ABY":
-            bank_info = "🏦 Abyssinia ባንክ (አቢሲኒያ)\n\n👤 ስም: Getamesay Fikru\n🔢 Acc: `167829104` (ABY)"
-        elif method == "TELE":
-            bank_info = "📱 Telebirr (ቴሌብር)\n\n👤 ስም: Getamesay Fikru\n🔢 ስልክ: `0965979124`"
+            bank_info = "🏦 Abyssinia ባንክ\n👤 Getamesay Fikru\n🔢 `167829104`"
+        else:
+            bank_info = "📱 Telebirr (ቴሌብር)\n👤 Getamesay Fikru\n🔢 `0965979124`"
         
-        bot.edit_message_text(f"{bank_info}\n\n📸 የከፈሉበትን **Screenshot** ይላኩ።", user_id, mid, parse_mode="Markdown")
+        bot.edit_message_text(f"{bank_info}\n\n📸 Screenshot ይላኩ።", user_id, mid, parse_mode="Markdown")
         bot.register_next_step_handler(call.message, get_screenshot)
 
     elif call.data.startswith("approve_"):
@@ -116,29 +115,28 @@ def router(call):
             exp_ts = (datetime.now() + timedelta(days=plan["duration"])).timestamp()
             users_col.update_one({"user_id": tid}, {"$set": {"expiry": exp_ts, "active": True}})
             
-            bot.send_message(tid, f"🎉 አባልነትዎ ጸድቋል!\n📅 ማብቂያ፡ {to_ethiopian(exp_ts)}\n\nቻናሎቹን ለመቀላቀል ከታች ያሉትን በተኖች ይጠቀሙ፡", reply_markup=get_channel_markup(tid))
+            bot.send_message(tid, f"🎉 አባልነትዎ ጸድቋል!\n📅 ማብቂያ፡ {to_ethiopian(exp_ts)}\n\nቻናሎቹን ይቀላቀሉ፡", reply_markup=get_channel_markup(tid))
             bot.edit_message_text(f"✅ ተጠቃሚ {tid} ጸድቋል!", ADMIN_ID, mid)
-            bot.answer_callback_query(call.id, "ተጠቃሚው ጸድቋል!")
+            bot.answer_callback_query(call.id, "ጸድቋል!")
 
     elif call.data == "refresh_links":
         bot.edit_message_reply_markup(user_id, mid, reply_markup=get_channel_markup(user_id))
-        bot.answer_callback_query(call.id, "የመቀላቀል ሁኔታ ታድሷል!")
+        bot.answer_callback_query(call.id, "ሁኔታው ታድሷል!")
 
     elif call.data.startswith("reject_"):
         tid = call.data.split("_")[1]
         markup = InlineKeyboardMarkup()
-        markup.add(InlineKeyboardButton("🚫 የተሳሳተ ደረሰኝ", callback_data=f"rj_wrong_{tid}"))
-        markup.add(InlineKeyboardButton("📉 የብር መጠን ያንሳል", callback_data=f"rj_less_{tid}"))
-        bot.edit_message_text("❌ ውድቅ የሚደረግበት ምክንያት፡", ADMIN_ID, mid, reply_markup=markup)
+        markup.add(InlineKeyboardButton("🚫 ስህተት", callback_data=f"rj_wrong_{tid}"),
+                   InlineKeyboardButton("📉 አነስተኛ", callback_data=f"rj_less_{tid}"))
+        bot.edit_message_text("ምክንያት ይምረጡ፡", ADMIN_ID, mid, reply_markup=markup)
 
     elif call.data.startswith("rj_"):
         _, r, tid = call.data.split("_")
         reason = "ደረሰኙ ስህተት ነው።" if r == "wrong" else "የከፈሉት መጠን ያንሳል።"
-        try:
-            bot.send_message(int(tid), f"❌ ይቅርታ ክፍያዎ ውድቅ ተደርጓል።\nምክንያት፡ {reason}")
-            bot.edit_message_text(f"🔴 ተጠቃሚ {tid} ውድቅ ተደርጓል", ADMIN_ID, mid)
-        except: pass
+        bot.send_message(int(tid), f"❌ ውድቅ ተደርጓል፡ {reason}")
+        bot.edit_message_text(f"🔴 ተጠቃሚ {tid} ውድቅ ተደርጓል", ADMIN_ID, mid)
 
+# ------------------- LOGIC -------------------
 def get_screenshot(message):
     if not message.photo:
         bot.reply_to(message, "📸 እባክዎ Screenshot ይላኩ።")
@@ -149,11 +147,11 @@ def get_screenshot(message):
     markup.add(InlineKeyboardButton("✅ Approve", callback_data=f"approve_{message.from_user.id}"),
                InlineKeyboardButton("❌ Reject", callback_data=f"reject_{message.from_user.id}"))
     
-    bot.send_message(ADMIN_ID, f"💰 ክፍያ ከ @{message.from_user.username}")
+    bot.send_message(ADMIN_ID, f"💰 አዲስ ክፍያ ከ @{message.from_user.username} (ID: `{message.from_user.id}`)", parse_mode="Markdown")
     bot.forward_message(ADMIN_ID, message.chat.id, message.message_id)
-    bot.send_message(ADMIN_ID, "ያረጋግጡ፡", reply_markup=markup)
-    bot.send_message(message.chat.id, "✅ ተልኳል! ከ1 ሰዓት ባልበለጠ ጊዜ ውስጥ ይረጋገጣል።")
+    bot.send_message(ADMIN_ID, "ድርጊት ይምረጡ፦", reply_markup=markup)
+    bot.send_message(message.chat.id, "✅ ተልኳል! በ1 ሰዓት ውስጥ ይረጋገጣል።")
 
 if __name__ == "__main__":
     keep_alive()
-    bot.infinity_polling()
+    bot.infinity_polling(timeout=60, long_polling_timeout=60)
