@@ -8,7 +8,7 @@ from ethiopian_date import EthiopianDateConverter
 from flask import Flask
 from threading import Thread
 
-# ------------------- KEEP ALIVE (Uptime) -------------------
+# ------------------- KEEP ALIVE -------------------
 app = Flask('')
 @app.route('/')
 def home(): return "Bot is running"
@@ -32,53 +32,40 @@ VIP_CHANNELS = [
 ]
 
 PLANS = {
-    "plan1": {"duration": 30, "price": 200, "label": "🗣 1 ወር ➡️ 200 ብር", "text": "የ1 ወር"},
-    "plan2": {"duration": 60, "price": 380, "label": "🗣 2 ወር ➡️ 380 ብር", "text": "የ2 ወር"},
-    "plan3": {"duration": 90, "price": 550, "label": "🗣 3 ወር ➡️ 550 ብር", "text": "የ3 ወር"},
-    "plan5": {"duration": 150, "price": 1050, "label": "🗣 5 ወር ➡️ 1050 ብር", "text": "የ5 ወር"},
-    "plan12": {"duration": 365, "price": 2000, "label": "💎 1 አመት ➡️ 2000 ብር", "text": "የ1 አመት"}
+    "plan1": {"duration": 30, "price": 200, "label": "🗣 1 ወር ➡️ 200 ብር"},
+    "plan2": {"duration": 60, "price": 380, "label": "🗣 2 ወር ➡️ 380 ብር"},
+    "plan3": {"duration": 90, "price": 550, "label": "🗣 3 ወር ➡️ 550 ብር"},
+    "plan5": {"duration": 150, "price": 1050, "label": "🗣 5 ወር ➡️ 1050 ብር"},
+    "plan12": {"duration": 365, "price": 2000, "label": "💎 1 አመት ➡️ 2000 ብር"}
 }
 
-# ------------------- EXPIRY CHECKER (ማስወጫ) -------------------
-def check_expiries():
-    while True:
-        try:
-            now = datetime.now().timestamp()
-            expired_users = users_col.find({"expiry": {"$lt": now}, "active": True})
-            for user in expired_users:
-                user_id = user["user_id"]
-                for ch in VIP_CHANNELS:
-                    try:
-                        bot.ban_chat_member(ch["id"], user_id)
-                        bot.unban_chat_member(ch["id"], user_id)
-                    except: pass
-                users_col.update_one({"user_id": user_id}, {"$set": {"active": False}})
-                try: bot.send_message(user_id, "⚠️ የቪአይፒ አባልነትዎ ጊዜ አልቋል። እባክዎ በድጋሚ በመክፈል አባልነትዎን ያድሱ።")
-                except: pass
-        except: pass
-        time.sleep(3600)
-
 # ------------------- HELPERS -------------------
+def check_join_status(user_id, channel_id):
+    try:
+        member = bot.get_chat_member(channel_id, user_id)
+        if member.status in ['member', 'administrator', 'creator']:
+            return "✅"
+        else:
+            return "☑️"
+    except:
+        return "☑️"
+
+def get_channel_markup(user_id):
+    markup = InlineKeyboardMarkup()
+    for ch in VIP_CHANNELS:
+        status_emoji = check_join_status(user_id, ch["id"])
+        # ጊዜያዊ ሊንክ መፍጠር
+        invite = bot.create_chat_invite_link(ch["id"], member_limit=1).invite_link
+        markup.add(InlineKeyboardButton(f"{status_emoji} {ch['name']}", url=invite))
+    
+    # ተጠቃሚው ቼክ እንዲያደርግ "Refresh" በተን
+    markup.add(InlineKeyboardButton("🔄 ሁኔታውን አድስ (Refresh Status)", callback_data="refresh_links"))
+    return markup
+
 def to_ethiopian(gregorian_ts):
     dt = datetime.fromtimestamp(gregorian_ts)
     conv = EthiopianDateConverter.to_ethiopian(dt.year, dt.month, dt.day)
     return f"{conv[2]}/{conv[1]}/{conv[0]}"
-
-def get_channel_markup(user_id, expiry_ts):
-    markup = InlineKeyboardMarkup()
-    for ch in VIP_CHANNELS:
-        try:
-            invite = bot.create_chat_invite_link(ch["id"], member_limit=1, expire_date=int(expiry_ts))
-            markup.add(InlineKeyboardButton(f"🔗 {ch['name']} ተቀላቀል", url=invite.invite_link))
-        except:
-            markup.add(InlineKeyboardButton(f"🔗 {ch['name']}", url="https://t.me/joinchat/example"))
-    return markup
-
-def get_start_markup():
-    markup = InlineKeyboardMarkup()
-    for key, plan in PLANS.items():
-        markup.add(InlineKeyboardButton(plan["label"], callback_data=key))
-    return markup
 
 # ------------------- COMMANDS -------------------
 @bot.message_handler(commands=["start"])
@@ -87,10 +74,14 @@ def start(message):
     if user_id == ADMIN_ID:
         markup = InlineKeyboardMarkup()
         markup.add(InlineKeyboardButton("📋 የደንበኞች ዝርዝር", callback_data="admin_list"))
-        markup.add(InlineKeyboardButton("📢 መልዕክት ላክ (Broadcast)", callback_data="admin_bc"))
+        markup.add(InlineKeyboardButton("📢 መልዕክት ላክ", callback_data="admin_bc"))
         bot.send_message(ADMIN_ID, "🛠 **የአድሚን ፓነል**", reply_markup=markup)
         return
-    bot.send_message(user_id, "👋 እንኳን ደህና መጡ! VIP ለመግባት ጥቅል ይምረጡ:", reply_markup=get_start_markup())
+    
+    markup = InlineKeyboardMarkup()
+    for key, plan in PLANS.items():
+        markup.add(InlineKeyboardButton(plan["label"], callback_data=key))
+    bot.send_message(user_id, "👋 እንኳን ደህና መጡ! VIP ለመግባት ጥቅል ይምረጡ:", reply_markup=markup)
 
 # ------------------- CALLBACKS -------------------
 @bot.callback_query_handler(func=lambda call: True)
@@ -103,17 +94,18 @@ def router(call):
         markup = InlineKeyboardMarkup()
         markup.add(InlineKeyboardButton("🏦 CBE", callback_data="p_cbe"), InlineKeyboardButton("🏦 Abyssinia", callback_data="p_aby"))
         markup.add(InlineKeyboardButton("📱 Telebirr", callback_data="p_tele"))
-        markup.add(InlineKeyboardButton("🔙 ተመለስ", callback_data="back_to_plans"))
         bot.edit_message_text("💳 የክፍያ አማራጭ ይምረጡ:", user_id, mid, reply_markup=markup)
-
-    elif call.data == "back_to_plans":
-        bot.edit_message_text("👋 VIP ለመግባት ጥቅል ይምረጡ:", user_id, mid, reply_markup=get_start_markup())
 
     elif call.data.startswith("p_"):
         method = call.data.split("_")[1].upper()
-        acc = "1000355140206 (CBE)" if method == "CBE" else "167829104 (ABY)" if method == "ABY" else "0965979124 (Tele)"
-        markup = InlineKeyboardMarkup().add(InlineKeyboardButton("🔙 ተመለስ", callback_data="back_to_plans"))
-        bot.edit_message_text(f"🏦 **{method} መረጃ**\n\n🔢 ቁጥር: `{acc}`\n\n📸 Screenshot ይላኩ።", user_id, mid, parse_mode="Markdown", reply_markup=markup)
+        if method == "CBE":
+            bank_info = "🏦 CBE ኢትዮጵያ ንግድ ባንክ\n\n👤 ስም: Getamesay Fikru\n🔢 Acc: `1000355140206` (CBE)"
+        elif method == "ABY":
+            bank_info = "🏦 Abyssinia ባንክ (አቢሲኒያ)\n\n👤 ስም: Getamesay Fikru\n🔢 Acc: `167829104` (ABY)"
+        elif method == "TELE":
+            bank_info = "📱 Telebirr (ቴሌብር)\n\n👤 ስም: Getamesay Fikru\n🔢 ስልክ: `0965979124`"
+        
+        bot.edit_message_text(f"{bank_info}\n\n📸 የከፈሉበትን **Screenshot** ይላኩ።", user_id, mid, parse_mode="Markdown")
         bot.register_next_step_handler(call.message, get_screenshot)
 
     elif call.data.startswith("approve_"):
@@ -123,15 +115,21 @@ def router(call):
             plan = PLANS[udata["plan"]]
             exp_ts = (datetime.now() + timedelta(days=plan["duration"])).timestamp()
             users_col.update_one({"user_id": tid}, {"$set": {"expiry": exp_ts, "active": True}})
-            bot.send_message(tid, f"🎉 አባልነትዎ ጸድቋል!\n📅 ማብቂያ፡ {to_ethiopian(exp_ts)}", reply_markup=get_channel_markup(tid, exp_ts))
+            
+            bot.send_message(tid, f"🎉 አባልነትዎ ጸድቋል!\n📅 ማብቂያ፡ {to_ethiopian(exp_ts)}\n\nቻናሎቹን ለመቀላቀል ከታች ያሉትን በተኖች ይጠቀሙ፡", reply_markup=get_channel_markup(tid))
             bot.edit_message_text(f"✅ ተጠቃሚ {tid} ጸድቋል!", ADMIN_ID, mid)
+            bot.answer_callback_query(call.id, "ተጠቃሚው ጸድቋል!")
+
+    elif call.data == "refresh_links":
+        bot.edit_message_reply_markup(user_id, mid, reply_markup=get_channel_markup(user_id))
+        bot.answer_callback_query(call.id, "የመቀላቀል ሁኔታ ታድሷል!")
 
     elif call.data.startswith("reject_"):
         tid = call.data.split("_")[1]
         markup = InlineKeyboardMarkup()
         markup.add(InlineKeyboardButton("🚫 የተሳሳተ ደረሰኝ", callback_data=f"rj_wrong_{tid}"))
         markup.add(InlineKeyboardButton("📉 የብር መጠን ያንሳል", callback_data=f"rj_less_{tid}"))
-        bot.edit_message_text("❌ ውድቅ የሚደረገበት ምክንያት ይምረጡ፡", ADMIN_ID, mid, reply_markup=markup)
+        bot.edit_message_text("❌ ውድቅ የሚደረግበት ምክንያት፡", ADMIN_ID, mid, reply_markup=markup)
 
     elif call.data.startswith("rj_"):
         _, r, tid = call.data.split("_")
@@ -141,43 +139,21 @@ def router(call):
             bot.edit_message_text(f"🔴 ተጠቃሚ {tid} ውድቅ ተደርጓል", ADMIN_ID, mid)
         except: pass
 
-    elif call.data == "admin_list":
-        users = list(users_col.find().sort("expiry", 1))
-        report = "👥 ተጠቃሚዎች:\n\n" + "\n".join([f"@{u.get('username','N/A')} | {to_ethiopian(u['expiry']) if u.get('expiry') else 'Pending'}" for u in users])
-        bot.send_message(ADMIN_ID, report if users else "ባዶ ነው")
-
-    elif call.data == "admin_bc":
-        msg = bot.send_message(ADMIN_ID, "📝 መልዕክት ይጻፉ (ለማቋረጥ /cancel)፡")
-        bot.register_next_step_handler(msg, run_broadcast)
-
-# ------------------- LOGIC -------------------
 def get_screenshot(message):
-    if message.text == "/start": return start(message)
     if not message.photo:
         bot.reply_to(message, "📸 እባክዎ Screenshot ይላኩ።")
         bot.register_next_step_handler(message, get_screenshot)
         return
+    
     markup = InlineKeyboardMarkup()
     markup.add(InlineKeyboardButton("✅ Approve", callback_data=f"approve_{message.from_user.id}"),
                InlineKeyboardButton("❌ Reject", callback_data=f"reject_{message.from_user.id}"))
-    bot.send_message(ADMIN_ID, f"💰 ክፍያ ከ @{message.from_user.username}", reply_markup=markup)
+    
+    bot.send_message(ADMIN_ID, f"💰 ክፍያ ከ @{message.from_user.username}")
     bot.forward_message(ADMIN_ID, message.chat.id, message.message_id)
-    bot.send_message(message.chat.id, "✅ ተልኳል! አድሚኑ መረጃውን አረጋግጦ ከ1 ሰዓት ባልበለጠ ጊዜ ውስጥ VIP ያነቃቃል።")
-
-def run_broadcast(message):
-    if message.text and (message.text.lower() == 'cancel' or message.text == '/cancel'):
-        bot.send_message(ADMIN_ID, "❌ ተሰርዟል።")
-        return
-    all_users = users_col.find()
-    s = 0
-    for u in all_users:
-        try:
-            bot.copy_message(u['user_id'], ADMIN_ID, message.message_id)
-            s += 1
-        except: pass
-    bot.send_message(ADMIN_ID, f"📢 ለ {s} ተልኳል")
+    bot.send_message(ADMIN_ID, "ያረጋግጡ፡", reply_markup=markup)
+    bot.send_message(message.chat.id, "✅ ተልኳል! ከ1 ሰዓት ባልበለጠ ጊዜ ውስጥ ይረጋገጣል።")
 
 if __name__ == "__main__":
     keep_alive()
-    Thread(target=check_expiries, daemon=True).start()
     bot.infinity_polling()
