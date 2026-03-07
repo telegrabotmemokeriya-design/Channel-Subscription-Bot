@@ -3,16 +3,7 @@ import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pymongo import MongoClient
 from datetime import datetime, timedelta
-from apscheduler.schedulers.background import BackgroundScheduler
-from flask import Flask
-from threading import Thread
-
-# ------------------- KEEP ALIVE -------------------
-app = Flask('')
-@app.route('/')
-def home(): return "Bot is running"
-def run_web(): app.run(host="0.0.0.0", port=int(os.environ.get("PORT",5000)))
-def keep_alive(): Thread(target=run_web).start()
+from convertdate import ethiopian
 
 # ------------------- CONFIG -------------------
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -24,39 +15,33 @@ client = MongoClient(MONGO_URI)
 db = client["vipbot"]
 users_col = db["users"]
 
-# ------------------- CHANNELS -------------------
+# ------------------- VIP CHANNELS -------------------
 VIP_CHANNELS = [
     {"id": -1003128362218, "name": "VIP Channel 1"},
     {"id": -1002978674693, "name": "VIP Channel 2"},
     {"id": -1003009075671, "name": "VIP Channel 3"}
 ]
 
-# ------------------- PLANS -------------------
-PLANS = {
-    "plan1": {"duration": 30, "price": 200, "label": "🗣 1 ወር ➡️ 200 ብር"},
-    "plan2": {"duration": 60, "price": 380, "label": "🗣 2 ወር ➡️ 380 ብር"},
-    "plan3": {"duration": 90, "price": 550, "label": "🗣 3 ወር ➡️ 550 ብር"},
-    "plan5": {"duration": 150, "price": 1050, "label": "🗣 5 ወር ➡️ 1050 ብር"},
-    "plan12": {"duration": 365, "price": 2000, "label": "💎 1 አመት ➡️ 2000 ብር"}
-}
+# ------------------- Helper: Convert to Ethiopian Calendar -------------------
+def eth_date(timestamp):
+    dt = datetime.fromtimestamp(timestamp)
+    eth_year, eth_month, eth_day = ethiopian.from_gregorian(dt.year, dt.month, dt.day)
+    return f"{eth_day:02d}/{eth_month:02d}/{eth_year}"
 
-# ------------------- START -------------------
+# ------------------- ADMIN PANEL /start -------------------
 @bot.message_handler(commands=["start"])
 def start(message):
     if message.from_user.id == ADMIN_ID:
         markup = InlineKeyboardMarkup()
-        # Button 1: VIP Members List
         markup.add(InlineKeyboardButton("📋 VIP Members List", callback_data="vip_list"))
-        # Button 2: VIP Channels List (this triggers dynamic channel buttons)
         markup.add(InlineKeyboardButton("📢 VIP Channels", callback_data="vip_channels"))
-        
         bot.send_message(message.chat.id, "✅ Admin Panel", reply_markup=markup)
 
 # ------------------- ADMIN CALLBACK HANDLER -------------------
 @bot.callback_query_handler(func=lambda call: True)
 def admin_panel_buttons(call):
-    
-    # ------------------- VIP Members List -------------------
+
+    # ---------- VIP Members List ----------
     if call.data == "vip_list":
         users = list(users_col.find())
         if not users:
@@ -64,33 +49,42 @@ def admin_panel_buttons(call):
             return
         text = "📋 VIP Users List:\n\n"
         for u in users:
-            text += f"👤 UserID: {u['user_id']} | Plan: {u.get('plan','N/A')} | Expiry: {datetime.fromtimestamp(u.get('expiry',0)).strftime('%Y-%m-%d %H:%M')}\n"
+            expiry_eth = eth_date(u.get("expiry",0))
+            text += f"👤 UserID: {u['user_id']} | Plan: {u.get('plan','N/A')} | Expiry (ET): {expiry_eth}\n"
             if "channels" in u:
                 for ch in u["channels"]:
                     text += f"   🔹 {ch['name']} | [Link]({ch['link']})\n"
             text += "\n"
         bot.send_message(ADMIN_ID, text, parse_mode="Markdown")
-    
-    # ------------------- VIP Channels List -------------------
+
+    # ---------- VIP Channels List ----------
     elif call.data == "vip_channels":
         markup = InlineKeyboardMarkup()
-        # Create a button for each channel dynamically
         for ch in VIP_CHANNELS:
-            markup.add(InlineKeyboardButton(f"{ch['name']}", callback_data=f"manage_{ch['id']}"))
-        # Add a button to add a new channel
+            markup.add(InlineKeyboardButton(f"{ch['name']}", callback_data=f"channel_{ch['id']}"))
         markup.add(InlineKeyboardButton("➕ Add New Channel", callback_data="add_new"))
         bot.send_message(ADMIN_ID, "📢 VIP Channels:", reply_markup=markup)
-    
-    # ------------------- Individual Channel Management -------------------
-    elif call.data.startswith("manage_"):
+
+    # ---------- Individual Channel Members ----------
+    elif call.data.startswith("channel_"):
         ch_id = int(call.data.split("_")[1])
         ch_name = next((c["name"] for c in VIP_CHANNELS if c["id"]==ch_id), "Unknown")
-        bot.send_message(ADMIN_ID, f"Managing Channel: {ch_name} (ID: {ch_id})\nHere you can implement edit/remove actions.")
-    
-    # ------------------- Add New Channel -------------------
+        users = list(users_col.find({"channels.id": ch_id}))
+        if not users:
+            bot.send_message(ADMIN_ID, f"❌ No members in {ch_name} yet.")
+            return
+        text = f"📋 Members in {ch_name}:\n\n"
+        for u in users:
+            expiry_eth = eth_date(u.get("expiry",0))
+            ch_link = next((c["link"] for c in u.get("channels",[]) if c["id"]==ch_id), "")
+            text += f"👤 UserID: {u['user_id']} | Plan: {u.get('plan','N/A')} | Expiry (ET): {expiry_eth}\n"
+            text += f"   🔹 [Invite Link]({ch_link})\n\n"
+        bot.send_message(ADMIN_ID, text, parse_mode="Markdown")
+
+    # ---------- Add New Channel ----------
     elif call.data == "add_new":
         bot.send_message(ADMIN_ID, "➕ Send the new channel info (ID and Name). You can implement input flow here.")
-
+        
     text = "👋 እንኳን ወደ VIP ቻናሎቻችን በደህና መጡ!\n\n✅ ከታች ከተዘረዘሩት ጥቅሎች የሚፈልጉትን ይምረጡ:"
     markup = InlineKeyboardMarkup()
     for key, plan in PLANS.items():
