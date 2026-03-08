@@ -105,7 +105,7 @@ def get_channel_status_markup(user_id):
         except Exception:
             continue
             
-    markup.add(InlineKeyboardButton("🔄 ሁኔታውን አድስ (Refresh)", callback_data="refresh_service"))
+    markup.add(InlineKeyboardButton("🔄 ሁሉም ቻናል መግባቶን ያረጋግጡ (Refresh)", callback_data="refresh_service"))
     return markup
 
 # =========================================================================
@@ -225,9 +225,9 @@ def handle_channel_list(message):
         
     markup = InlineKeyboardMarkup()
     for ch in channels:
-        markup.add(InlineKeyboardButton(f"📺 {ch['name']}", callback_data=f"view_ch_{ch['id']}"))
+        markup.add(InlineKeyboardButton(f"🔹 {ch['name']}", callback_data=f"view_ch_{ch['id']}"))
         
-    bot.send_message(message.chat.id, "<b>📌 የቪአይፒ ቻናሎች ዝርዝር (ስማቸውን ሲጫኑ መግለጫ ያሳያሉ)፦</b>", reply_markup=markup)
+    bot.send_message(message.chat.id, "<b>📌 የVIP ቻናሎች ዝርዝር፦ (ስማቸውን ሲጫኑ መግለጫ ያሳያሉ)፦</b>", reply_markup=markup)
 
 # =========================================================================
 # 7. CALLBACK QUERY HANDLER
@@ -353,7 +353,14 @@ def handle_all_callbacks(call):
             upsert=True
         )
         
-        bot.send_message(target_id, f"<b>✅ እንኳን ደስ አለዎት! ክፍያዎ ተረጋግጧል።</b>\nአሁን የGett VIP አባል ነዎት።\n\nማብቂያ፦ {to_eth_date(expiry_ts)}", reply_markup=get_channel_status_markup(target_id))
+        bot.send_msg = (f"👤 ስም: {message.from_user.first_name}\n" 
+f"📅 የገቡበት: {to_ethiopian_format(u.get('joined_at', time.time()))}\n" 
+f"⏳ የሚያበቃው: {to_ethiopian_format(u['expiry'])}\n\n" 
+f"☑️ - ቻናል ውስጥ አልገቡም\n"
+f"✅ - ቻናል ውስጥ ገብተዋል\n\n" 
+f"የሁሉንም ቻናሎች ሊንኮች ከታች ይገኛል🔻")
+ bot.send_message(message.chat.id, msg, reply_markup=get_channel_markup(message.from_user.id), protect_content=True)
+
         bot.edit_message_text(f"✅ ተጠቃሚ {target_id} ጸድቋል!", ADMIN_ID, mid)
 
     # User: Reject Payment (By Admin)
@@ -459,7 +466,4 @@ if __name__ == "__main__":
     # Start Polling
     while True:
         try:
-            bot.polling(none_stop=True, interval=0, timeout=20)
-        except Exception as e:
-            logger.error(f"Polling Error: {e}")
-            time.sleep(15)
+            bot.polling
