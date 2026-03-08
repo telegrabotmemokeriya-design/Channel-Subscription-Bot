@@ -347,23 +347,28 @@ def handle_all_callbacks(call):
         days = PLANS[plan_id]["days"]
         expiry_ts = (datetime.now() + timedelta(days=days)).timestamp()
         
+        # የዳታቤዝ ማሻሻያ
         users_col.update_one(
             {"user_id": target_id},
             {"$set": {"active": True, "expiry": expiry_ts, "plan": plan_id, "joined_at": time.time()}},
             upsert=True
         )
         
-        bot.send_msg = (f"👤 ስም: {message.from_user.first_name}\n" 
+        # ለተጠቃሚው የሚላክ መልዕክት
+        expiry_str = to_eth_date(expiry_ts) 
+        msg = (
+            f"<b>✅ እንኳን ደስ አለዎት! ክፍያዎ ተረጋግጧል።</b>\n\n"
+         f"👤 ስም: {message.from_user.first_name}\n" 
 f"📅 የገቡበት: {to_ethiopian_format(u.get('joined_at', time.time()))}\n" 
-f"⏳ የሚያበቃው: {to_ethiopian_format(u['expiry'])}\n\n" 
+f"⏳ የሚያበቃው {to_ethiopian_format(u['expiry'])}\n\n" 
 f"☑️ - ቻናል ውስጥ አልገቡም\n"
 f"✅ - ቻናል ውስጥ ገብተዋል\n\n" 
-f"የሁሉንም ቻናሎች ሊንኮች ከታች ይገኛል🔻")
- bot.send_message(message.chat.id, msg, reply_markup=get_channel_markup(message.from_user.id), protect_content=True)
-
+f"የሁሉንም ቻናሎች ሊንኮች ከታች ይገናኛሉ🔻")
+        
+        # እዚህ ጋር ነው ስህተት የነበረው (Indentation ተስተካክሏል)
+        bot.send_message(target_id, msg, reply_markup=get_channel_status_markup(target_id), protect_content=is_restriction_on())
         bot.edit_message_text(f"✅ ተጠቃሚ {target_id} ጸድቋል!", ADMIN_ID, mid)
 
-    # User: Reject Payment (By Admin)
     elif call.data.startswith("reject_"):
         target_id = int(call.data.split("_")[1])
         markup = InlineKeyboardMarkup()
