@@ -466,4 +466,7 @@ if __name__ == "__main__":
     # Start Polling
     while True:
         try:
-            bot.polling
+            bot.polling(none_stop=True, interval=0, timeout=20)
+        except Exception as e:
+            logger.error(f"Polling Error: {e}")
+            time.sleep(15)
