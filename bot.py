@@ -339,7 +339,7 @@ def handle_all_callbacks(call):
         bot.answer_callback_query(call.id, "Restriction Status Updated!")
         bot.edit_message_reply_markup(ADMIN_ID, mid, reply_markup=admin_panel_keyboard())
 
-    # User: Approve Payment (By Admin)
+  # User: Approve Payment (By Admin)
     elif call.data.startswith("approve_"):
         _, target_id, plan_id = call.data.split("_")
         target_id = int(target_id)
@@ -354,26 +354,29 @@ def handle_all_callbacks(call):
             upsert=True
         )
         
-        # ለተጠቃሚው የሚላክ መልዕክት
-        expiry_str = to_eth_date(expiry_ts) 
+        # መረጃውን ከዳታቤዝ እናምጣ
+        u = users_col.find_one({"user_id": target_id})
+        
+        # ያዘዝከኝ መልዕክት (ያለ ምንም ለውጥ)
         msg = (
             f"<b>✅ እንኳን ደስ አለዎት! ክፍያዎ ተረጋግጧል።</b>\n\n"
-         f"👤 ስም: {message.from_user.first_name}\n" 
-f"📅 የገቡበት: {to_ethiopian_format(u.get('joined_at', time.time()))}\n" 
-f"⏳ የሚያበቃው {to_ethiopian_format(u['expiry'])}\n\n" 
-f"☑️ - ቻናል ውስጥ አልገቡም\n"
-f"✅ - ቻናል ውስጥ ገብተዋል\n\n" 
-f"የሁሉንም ቻናሎች ሊንኮች ከታች ይገናኛሉ🔻")
+            f"👤 ስም: {call.from_user.first_name}\n" 
+            f"📅 የገቡበት: {to_eth_date(u.get('joined_at', time.time()))}\n" 
+            f"⏳ የሚያበቃው {to_eth_date(u['expiry'])}\n\n" 
+            f"☑️ - ቻናል ውስጥ አልገቡም\n"
+            f"✅ - ቻናል ውስጥ ገብተዋል\n\n" 
+            f"የሁሉንም ቻናሎች ሊንኮች ከታች ይገናኛሉ🔻"
+        )
         
-        # እዚህ ጋር ነው ስህተት የነበረው (Indentation ተስተካክሏል)
-                bot.edit_message_text(f"✅ ተጠቃሚ {target_id} ጸድቋል!", ADMIN_ID, mid) 
+        bot.send_message(target_id, msg, reply_markup=get_channel_status_markup(target_id))
+        bot.edit_message_text(f"✅ ተጠቃሚ {target_id} ጸድቋል!", ADMIN_ID, mid)
 
-    # User: Reject Payment (By Admin)
-    elif call.data.startswith("reject_"):
-        target_id = int(call.data.split("_")[1])
-        markup = InlineKeyboardMarkup()
-        markup.add(
-            InlineKeyboardButton("🚫 የደረሰኝ ስህተት", callback_data=f"rj_msg_{target_id}_receipt"
+    # User: Reject Payment (By Admin)
+    elif call.data.startswith("reject_"):
+        target_id = int(call.data.split("_")[1])
+        markup = InlineKeyboardMarkup()
+        markup.add(
+            InlineKeyboardButton("🚫 የደረሰኝ ስህተት", callback_data=f"rj_msg_{target_id}_receipt"),
             InlineKeyboardButton("📉 ብር አነስተኛ ነው", callback_data=f"rj_msg_{target_id}_amount")
         )
         markup.add(InlineKeyboardButton("✍️ የራስህን መልዕክት ጻፍ", callback_data=f"rj_custom_{target_id}"))
