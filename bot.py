@@ -366,14 +366,14 @@ f"✅ - ቻናል ውስጥ ገብተዋል\n\n"
 f"የሁሉንም ቻናሎች ሊንኮች ከታች ይገናኛሉ🔻")
         
         # እዚህ ጋር ነው ስህተት የነበረው (Indentation ተስተካክሏል)
-        bot.send_message(target_id, msg, reply_markup=get_channel_status_markup(target_id), protect_content=is_restriction_on())
-        bot.edit_message_text(f"✅ ተጠቃሚ {target_id} ጸድቋል!", ADMIN_ID, mid)
+                bot.edit_message_text(f"✅ ተጠቃሚ {target_id} ጸድቋል!", ADMIN_ID, mid) 
 
-    elif call.data.startswith("reject_"):
-        target_id = int(call.data.split("_")[1])
-        markup = InlineKeyboardMarkup()
-        markup.add(
-            InlineKeyboardButton("🚫 የደረሰኝ ስህተት", callback_data=f"rj_msg_{target_id}_receipt"),
+    # User: Reject Payment (By Admin)
+    elif call.data.startswith("reject_"):
+        target_id = int(call.data.split("_")[1])
+        markup = InlineKeyboardMarkup()
+        markup.add(
+            InlineKeyboardButton("🚫 የደረሰኝ ስህተት", callback_data=f"rj_msg_{target_id}_receipt"
             InlineKeyboardButton("📉 ብር አነስተኛ ነው", callback_data=f"rj_msg_{target_id}_amount")
         )
         markup.add(InlineKeyboardButton("✍️ የራስህን መልዕክት ጻፍ", callback_data=f"rj_custom_{target_id}"))
