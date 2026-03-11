@@ -152,11 +152,13 @@ def auto_kick_worker():
 # =========================================================================
 # 5. KEYBOARDS
 # =========================================================================
-def main_menu_keyboard():
+def main_menu_keyboard(uid):
+    lang = get_user_lang(uid)
     markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    markup.add(KeyboardButton("💎 VIP ለመመዝገብ"), KeyboardButton("👤 የእኔ አገልግሎት"))
-    markup.add(KeyboardButton("🎬 Addis Film Poster"), KeyboardButton("📜 VIP Channel ዝርዝር"))
-    markup.add(KeyboardButton("🆘 እገዛ (Help)"))
+    btns = TEXTS[lang]["menu"]
+    markup.add(KeyboardButton(btns[0]), KeyboardButton(btns[1]))
+    markup.add(KeyboardButton(btns[2]), KeyboardButton(btns[3]))
+    markup.add(KeyboardButton(btns[4]))
     return markup
 
 def admin_panel_keyboard():
@@ -244,6 +246,13 @@ def handle_channel_list(message):
 @bot.callback_query_handler(func=lambda call: True)
 def handle_all_callbacks(call):
     uid, mid = call.from_user.id, call.message.message_id
+
+    if call.data.startswith("lang_"):
+        lcode = call.data.split("_")[1]
+        users_col.update_one({"user_id": uid}, {"$set": {"lang": lcode}}, upsert=True)
+        bot.delete_message(uid, mid)
+        bot.send_message(uid, f"<b>{TEXTS[lcode]['welcome']}!</b>", reply_markup=main_menu_keyboard(uid))
+        return
 
     # --- ቋንቋ ሲመረጥ የሚሰራ ክፍል ---
     if call.data.startswith("lang_"):
