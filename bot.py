@@ -83,6 +83,10 @@ def is_restriction_on():
     data = settings_col.find_one({"type": "config"})
     return data.get("restriction", True) if data else True
 
+def get_user_lang(uid):
+    user = users_col.find_one({"user_id": uid})
+    return user.get("lang", "am") if user else "am"
+
 def get_channel_status_markup(user_id):
     """Generates a list of channels with join status icons"""
     markup = InlineKeyboardMarkup()
@@ -176,14 +180,16 @@ def admin_panel_keyboard():
 @bot.message_handler(commands=['start'])
 def handle_start(message):
     uid = message.chat.id
-    first_name = message.from_user.first_name
-    
-    welcome_text = (
-        f"<b>ሰላም {first_name}፣ እንኳን ወደ Gett VIP Bot በሰላም መጡ!</b>\n\n"
-        "ይህ ቦት የVIP ቻናሎቻችንን በክፍያ ለመቀላቀል እና አገልግሎትዎን ለመቆጣጠር ይረዳዎታል። "
-        "ለመጀመር ከታች ካሉት አማራጮች አንዱን ይምረጡ።"
+    # የቋንቋ መምረጫ በተኖች
+    markup = InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        InlineKeyboardButton("አማርኛ 🇪🇹", callback_data="lang_am"),
+        InlineKeyboardButton("English 🇺🇸", callback_data="lang_en"),
+        InlineKeyboardButton("Oromoo 🇪🇹", callback_data="lang_or"),
+        InlineKeyboardButton("ትግርኛ 🇪🇹", callback_data="lang_tg"),
+        InlineKeyboardButton("العربية 🇸🇦", callback_data="lang_ar")
     )
-    bot.send_message(uid, welcome_text, reply_markup=main_menu_keyboard())
+    bot.send_message(uid, "<b>Gett VIP ⚜️\n\nChoose Language / ቋንቋ ይምረጡ</b>", reply_markup=markup)
     
     if uid == ADMIN_ID:
         bot.send_message(ADMIN_ID, "<b>🛠 Master Admin Panel:</b>", reply_markup=admin_panel_keyboard())
@@ -239,7 +245,7 @@ def handle_channel_list(message):
 def handle_all_callbacks(call):
     uid, mid = call.from_user.id, call.message.message_id
 
-# --- ቋንቋ ሲመረጥ የሚሰራ ክፍል ---
+    # --- ቋንቋ ሲመረጥ የሚሰራ ክፍል ---
     if call.data.startswith("lang_"):
         lcode = call.data.split("_")[1]
         # የመረጠውን ቋንቋ ዳታቤዝ ላይ ይመዘግባል
