@@ -238,6 +238,17 @@ def handle_channel_list(message):
 @bot.callback_query_handler(func=lambda call: True)
 def handle_all_callbacks(call):
     uid, mid = call.from_user.id, call.message.message_id
+
+# --- ቋንቋ ሲመረጥ የሚሰራ ክፍል ---
+    if call.data.startswith("lang_"):
+        lcode = call.data.split("_")[1]
+        # የመረጠውን ቋንቋ ዳታቤዝ ላይ ይመዘግባል
+        users_col.update_one({"user_id": uid}, {"$set": {"lang": lcode}}, upsert=True)
+        
+        bot.delete_message(uid, mid)
+        # ቋንቋው እንደተመረጠ ወደ ዋናው ሜኑ ይወስደዋል
+        bot.send_message(uid, "<b>✅ Setup Complete! / ተዋቅሯል!</b>", reply_markup=main_menu_keyboard())
+        return
     
     # User: Plan Selection
     if call.data.startswith("buy_"):
