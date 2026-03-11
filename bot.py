@@ -64,6 +64,14 @@ PLANS = {
     "plan12": {"duration": 365, "price": 2000, "name": "የ 1 አመት (2000 ብር)", "days": 365}
 }
 
+TEXTS = {
+    "am": {"welcome": "እንኳን ደህና መጡ", "menu": ["💎 VIP ለመመዝገብ", "👤 የእኔ አገልግሎት", "🎬 Addis Film Poster", "📜 VIP Channel ዝርዝር", "🆘 እገዛ (Help)"]},
+    "en": {"welcome": "Welcome to Gett VIP", "menu": ["💎 Register VIP", "👤 My Service", "🎬 Addis Film Poster", "📜 VIP Channel List", "🆘 Help"]},
+    "or": {"welcome": "Baga nagaan dhuftan", "menu": ["💎 VIP Galmaa'uuf", "👤 Tajaajila Koo", "🎬 Addis Film Poster", "📜 Tarree VIP Channel", "🆘 Gargaarsa"]},
+    "tg": {"welcome": "እንቋዕ ብደሓን መጻእኹም", "menu": ["💎 VIP ንምምዝጋብ", "👤 ናተይ ኣገልግሎት", "🎬 Addis Film Poster", "📜 ዝርዝር VIP ቻነል", "🆘 ሓገዝ"]},
+    "ar": {"welcome": "أهلاً بك في VIP", "menu": ["💎 الاشتراك في VIP", "👤 خدمتي", "🎬 Addis Film Poster", "📜 قائمة القنوات", "🆘 مساعدة"]}
+}
+
 # =========================================================================
 # 3. UTILITY FUNCTIONS
 # =========================================================================
