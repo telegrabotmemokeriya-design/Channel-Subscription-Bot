@@ -1,3 +1,4 @@
+
 import os
 import telebot
 import time
@@ -220,14 +221,16 @@ def handle_registration(message):
 def handle_channel_list(message):
     channels = list(channels_col.find())
     if not channels:
-        bot.send_message(message.chat.id, "ምንም የተመዘገበ ቻናል የለም።")
+        bot.send_message(message.chat.id, "<b>❌ እስካሁን ምንም ቻናል አልተመዘገበም።</b>")
         return
         
     markup = InlineKeyboardMarkup()
     for ch in channels:
+        # በዳታቤዝህ 'id' ስለሚል ch['id'] ተጠቅሜያለሁ
         markup.add(InlineKeyboardButton(f"🔹 {ch['name']}", callback_data=f"view_ch_{ch['id']}"))
         
-    bot.send_message(message.chat.id, "<b>📌 የVIP ቻናሎች ዝርዝር፦ (ስማቸውን ሲጫኑ መግለጫ ያሳያሉ)፦</b>", reply_markup=markup)
+    bot.send_message(message.chat.id, "<b>📜 የVIP ቻናሎች ዝርዝር፦</b>\nስለ ቻናሉ ለማወቅ ስሙን ይጫኑ 👇", 
+                     reply_markup=markup)
 
 # =========================================================================
 # 7. CALLBACK QUERY HANDLER
@@ -382,17 +385,19 @@ def handle_all_callbacks(call):
         markup.add(InlineKeyboardButton("✍️ የራስህን መልዕክት ጻፍ", callback_data=f"rj_custom_{target_id}"))
         bot.edit_message_text("ውድቅ የተደረገበትን ምክንያት ይምረጡ፦", ADMIN_ID, mid, reply_markup=markup)
 
-    # User: Refresh Status
-    elif call.data == "refresh_service":
-        bot.edit_message_reply_markup(uid, mid, reply_markup=get_channel_status_markup(uid))
-
-    # User: View Description
+    # User: View Description with Real-time Update
     elif call.data.startswith("view_ch_"):
         ch_id = int(call.data.split("_")[2])
         try:
+            # የቻናሉን Bio/Description ቀጥታ ከቴሌግራም ያመጣል
             info = bot.get_chat(ch_id)
-            bot.answer_callback_query(call.id, f"📝 መግለጫ፦ {info.description if info.description else 'ምንም መግለጫ የለም'}", show_alert=True)
-        except: pass
+            description = info.description if info.description else "ለዚህ ቻናል ምንም መግለጫ አልተጻፈም።"
+            
+            # በፖፕ-አፕ (Alert) ያሳያል
+            bot.answer_callback_query(call.id, f"📝 የቻናሉ መግለጫ፦\n\n{description}", show_alert=True)
+        except Exception as e:
+            logger.error(f"Description error: {e}")
+            bot.answer_callback_query(call.id, "❌ መረጃውን ማግኘት አልተቻለም። ቦቱ በቻናሉ ላይ አድሚን መሆኑን ያረጋግጡ።", show_alert=True)
 
 # =========================================================================
 # 8. PAYMENT & ADMIN PROCESSES
@@ -478,3 +483,4 @@ if __name__ == "__main__":
         except Exception as e:
             logger.error(f"Polling Error: {e}")
             time.sleep(15)
+
