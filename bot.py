@@ -507,6 +507,41 @@ def process_manual_remove(message):
 
     bot.send_message(ADMIN_ID, f"✅ ተጠቃሚ {target_id} ከ {success_count} ቻናሎች ተወግዷል፤ በዳታቤዝም አገልግሎቱ ተዘግቷል።", reply_markup=admin_panel_keyboard())
 
+def process_broadcast(message):
+    if message.text == "/cancel":
+        bot.send_message(ADMIN_ID, "ሂደቱ ተሰርዟል!", reply_markup=admin_panel_keyboard())
+        return
+
+    # ሁሉንም ተጠቃሚዎች ከዳታቤዝ ማውጣት
+    all_users = list(users_col.find({}, {"user_id": 1}))
+    total = len(all_users)
+    sent, fail = 0, 0
+
+    status_msg = bot.send_message(ADMIN_ID, f"⏳ ብሮድካስት እየተላከ ነው... (0/{total})")
+
+    for index, user in enumerate(all_users):
+        try:
+            # copy_message ማንኛውንም አይነት ሚዲያ (ፎቶ፣ ቪዲዮ፣ ፋይል) ከነ ሊንኩ ይልካል
+            bot.copy_message(user["user_id"], ADMIN_ID, message.message_id)
+            sent += 1
+        except Exception:
+            fail += 1
+        
+        # በየ 10 ሰው ቁጥሩን Update ለማድረግ
+        if (index + 1) % 10 == 0:
+            try:
+                bot.edit_message_text(f"⏳ በመላክ ላይ... ({index + 1}/{total})", ADMIN_ID, status_msg.message_id)
+            except:
+                pass
+
+    report = (
+        f"<b>📢 ብሮድካስት ተጠናቋል!</b>\n\n"
+        f"✅ በስኬት የደረሳቸው: <b>{sent}</b>\n"
+        f"❌ ያልደረሳቸው (Block): <b>{fail}</b>\n"
+        f"📊 ጠቅላላ ተጠቃሚ: <b>{total}</b>"
+    )
+    bot.send_message(ADMIN_ID, report, reply_markup=admin_panel_keyboard())
+
 
 # =========================================================================
 # 9. RUN BOT
