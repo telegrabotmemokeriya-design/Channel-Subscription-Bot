@@ -343,6 +343,12 @@ def handle_all_callbacks(call):
         bot.answer_callback_query(call.id, "Restriction Status Updated!")
         bot.edit_message_reply_markup(ADMIN_ID, mid, reply_markup=admin_panel_keyboard())
 
+        # Admin: Manual Remove User
+    elif call.data == "adm_manual_remove":
+        msg = bot.send_message(ADMIN_ID, "እባክዎ ማስወገድ የሚፈልጉትን ተጠቃሚ ID (User ID) ይላኩ፦\n(ለመለሰረዝ /cancel ይበሉ)")
+        bot.register_next_step_handler(msg, process_manual_remove)
+
+
   # User: Approve Payment (By Admin)
     elif call.data.startswith("approve_"):
         _, target_id, plan_id = call.data.split("_")
