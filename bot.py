@@ -470,6 +470,38 @@ def process_add_channel(message):
     channels_col.update_one({"id": ch_id}, {"$set": {"name": ch_name}}, upsert=True)
     bot.send_message(ADMIN_ID, f"✅ ቻናል <b>{ch_name}</b> (ID: {ch_id}) በስኬት ተጨምሯል!")
 
+def process_manual_remove(message):
+    uid_text = message.text.strip()
+    
+    if uid_text == "/cancel":
+        bot.send_message(ADMIN_ID, "ሂደቱ ተሰርዟል!", reply_markup=admin_panel_keyboard())
+        return
+
+    if not uid_text.isdigit():
+        bot.send_message(ADMIN_ID, "❌ ስህተት! እባክዎ ትክክለኛ የቁጥር ID ብቻ ያስገቡ።")
+        bot.register_next_step_handler(message, process_manual_remove)
+        return
+
+    target_id = int(uid_text)
+    
+    # 1. ከዳታቤዝ አገልግሎቱን ማቋረጥ
+    users_col.update_one({"user_id": target_id}, {"$set": {"active": False, "expiry": 0}})
+    
+    # 2. ከሁሉም VIP ቻናሎች ማስወገድ
+    success_count = 0
+    channels = list(channels_col.find())
+    
+    for ch in channels:
+        try:
+            bot.ban_chat_member(ch["id"], target_id)
+            bot.unban_chat_member(ch["id"], target_id) 
+            success_count += 1
+        except Exception:
+            continue
+
+    bot.send_message(ADMIN_ID, f"✅ ተጠቃሚ {target_id} ከ {success_count} ቻናሎች ተወግዷል፤ በዳታቤዝም አገልግሎቱ ተዘግቷል።", reply_markup=admin_panel_keyboard())
+
+
 # =========================================================================
 # 9. RUN BOT
 # =========================================================================
