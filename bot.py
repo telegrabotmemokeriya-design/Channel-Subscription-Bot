@@ -167,7 +167,8 @@ def admin_panel_keyboard():
     )
     res_text = "🚫 Restriction: ON" if is_restriction_on() else "🔓 Restriction: OFF"
     markup.add(InlineKeyboardButton(res_text, callback_data="adm_toggle_res"))
-    markup.add(InlineKeyboardButton("👤 ተጠቃሚ ጨምር (Manual)", callback_data="adm_manual_add"))
+    markup.add(InlineKeyboardButton("👤 ተጠቃሚ ማባረር (Manual)", callback_data="adm_manual_remove"))
+
     return markup
 
 # =========================================================================
