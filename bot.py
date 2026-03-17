@@ -298,10 +298,26 @@ def handle_all_callbacks(call):
         target_id = int(call.data.split("_")[2])
         users_col.update_one({"user_id": target_id}, {"$set": {"active": False, "expiry": 0}})
 
-    # አድሚኑ ብሮድካስት ሲነካ መልዕክት እንዲጠይቅ
+    # Admin: Remove User (ይህ ክፍል ነው ተበላሽቶ የነበረው)
+    elif call.data.startswith("adm_kick_"):
+        target_id = int(call.data.split("_")[2])
+        users_col.update_one({"user_id": target_id}, {"$set": {"active": False, "expiry": 0}})
+        
+        # ተጠቃሚውን ከVIP ቻናሎች ማስወጣት
+        for ch in list(channels_col.find()):
+            try:
+                bot.ban_chat_member(ch["id"], target_id)
+                bot.unban_chat_member(ch["id"], target_id)
+            except: pass
+            
+        bot.answer_callback_query(call.id, "ተጠቃሚው ተወግዷል።")
+        bot.edit_message_text(f"✅ ተጠቃሚ {target_id} ከአገልግሎት ተወግዷል።", ADMIN_ID, mid)
+
+    # Admin: Broadcast Start
     elif call.data == "adm_bc":
         msg = bot.send_message(ADMIN_ID, "📢 ለሁሉም የሚላከውን መልዕክት ይላኩ (ፎቶ፣ ቪዲዮ፣ ጽሁፍ ከነ ሊንኩ መስራት ይችላል)፦\nለመሰረዝ /cancel ይበሉ።")
         bot.register_next_step_handler(msg, process_broadcast)
+
 
         
         # Kick from channels
